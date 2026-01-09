@@ -2,7 +2,22 @@ import Seq_EdgeDetection as edt
 import os
 import cv2
 
+from ultralytics import YOLO
+
+# Load a model
+model = YOLO("yolo11n.yaml")  # build a new model from YAML
+print("Loaded")
+model = YOLO("yolo11n.pt")  # load a pretrained model (recommended for training)
+print("Pretrained")
+model = YOLO("yolo11n.yaml").load("yolo11n.pt")  # build from YAML and transfer weights
+print("Transfered")
+
+# Train the model on your custom dataset
+model.train(data="data.yaml", epochs=100, imgsz=480,  device=0)
+print("Ready")
 #edt.Edge_Get('FruitExtracted/Apple-Fresh/IMG-20240612-WA0025.jpg')
+
+image_target = "file.jpg"
 
 def Generate_Dataset():
     directory = os.fsencode("FruitExtracted")
@@ -24,4 +39,12 @@ def Generate_Dataset():
     return
     #None
 
-Generate_Dataset()
+def GetImage():
+    processed = edt.Edge_Get(image_target)
+
+    result = model(source=image_target, show=True, conf=0.4, save=True)
+
+    return
+
+#Generate_Dataset()
+GetImage()
