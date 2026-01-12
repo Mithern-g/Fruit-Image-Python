@@ -8,3 +8,5 @@ https://packaging.python.org/en/latest/tutorials/installing-packages/#creating-v
 pip install -U ultralytics
 
 pip install -U opencv-python
+
+pip install -U skimage
