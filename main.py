@@ -59,21 +59,34 @@ class ColorSpaceTransformer:
             green_mask = cv2.inRange(hsv_image, lower_green, upper_green)
 
             # 4. BROWN/BLACK MASK (Rotten)
-            lower_brown, upper_brown = np.array([5, 40, 10]), np.array([17, 255, 120])
+            #lower_brown, upper_brown = np.array([5, 40, 10]), np.array([17, 255, 120]) Replaced for testing reasons
+            lower_brown, upper_brown = np.array([1, 135, 0]), np.array([21, 255, 150]) #For Reddish/Brownish Dark Colors
             brown_mask = cv2.inRange(hsv_image, lower_brown, upper_brown)
 
+            # 5. Decay Mask (Addition)
+            lower_decay, upper_decay = np.array([8, 0, 165]), np.array([10, 115, 255]) #For funny fungi color
+            decay_mask = cv2.inRange(hsv_image, lower_decay, upper_decay)
+
+            # 6. Oddity Mask (Addition)
+            lower_oddity, upper_oddity = np.array([16,205,215]), np.array([18,255,255]) #Odd spots on some of the bad ones
+            oddity_mask = cv2.inRange(hsv_image, lower_oddity, upper_oddity)
+
             # Calculate Percentages
-            red_pct = (cv2.countNonZero(cv2.bitwise_and(red_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
+            red_pct    = (cv2.countNonZero(cv2.bitwise_and(red_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
             yellow_pct = (cv2.countNonZero(cv2.bitwise_and(yellow_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
-            green_pct = (cv2.countNonZero(cv2.bitwise_and(green_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
-            brown_pct = (cv2.countNonZero(cv2.bitwise_and(brown_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
-            
+            green_pct  = (cv2.countNonZero(cv2.bitwise_and(green_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
+            brown_pct  = (cv2.countNonZero(cv2.bitwise_and(brown_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
+            decay_pct  = (cv2.countNonZero(cv2.bitwise_and(decay_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
+            oddity_pct = (cv2.countNonZero(cv2.bitwise_and(oddity_mask, binary_mask)) / apple_area * 100) if apple_area > 0 else 0
+
             return {
                 'color_space': 'HSV',
                 'red_percentage': red_pct,
                 'yellow_percentage': yellow_pct,
                 'green_percentage': green_pct,
                 'brown_percentage': brown_pct,
+                'decay_percentage': decay_pct,
+                'oddity_percentage': oddity_pct,
                 'mask': binary_mask,
                 'original_bgr': bgr_image
             }
@@ -108,7 +121,9 @@ class FeatureExtractor:
         features['yellow_percentage'] = color_data.get('yellow_percentage', 0)
         features['green_percentage'] = color_data.get('green_percentage', 0)
         features['brown_percentage'] = color_data.get('brown_percentage', 0)
-        
+        features['oddity_percentage'] = color_data.get('brown_percentage', 0)
+        features['decay_percentage'] = color_data.get('decay_percentage', 0)
+
         return features
 
 # ==================== GRADING MODULE ====================
@@ -120,12 +135,20 @@ class FruitGrader:
         yellow = features.get('yellow_percentage', 0)
         green = features.get('green_percentage', 0)
         brown = features.get('brown_percentage', 0)
+        decay = features.get('decay_percentage', 0)
+        oddity = features.get('oddity_percentage',0)
         contrast = features.get('glcm_contrast', 0)
         circularity = features.get('circularity', 0)
 
+        #Adjust as one desire, this isn't accurate, after all.'
+        brown_weight = 1.2 #Higher due to capability of marking deep red/brown bad situations
+        oddity_weight = 0.2 #Lower due to inaccuracy and weird situations
+        decay_weight = 0.65 #Less due to I am not very confident in this.
+
         # 2. Competitive Scoring
         fresh_score = red + yellow + green
-        
+        awful_score = brown*brown_weight + oddity*oddity_weight + decay*decay_weight
+
         # 3. RULE: Structural/Texture Failure (Highest Priority)
         # Fixes msg5170347760-69603 (Circ: 0.39) and msg5170347760-71081 (Contrast: 34)
         if 0 < circularity < 0.60 or contrast > 33.5:
@@ -133,11 +156,15 @@ class FruitGrader:
 
         # 4. RULE: Color Dominance (Freshness Shield)
         # Fixes 6100533069082640056 (Brown: 21.7% but Yellow: 47.5%)
-        if brown > 12.0:
-            if fresh_score > (brown * 1.4):
-                return 'Fresh'
-            else:
-                return 'Rotten'
+        #if brown > 12.0:
+        #    if fresh_score > (brown * 1.4):
+        #        return 'Fresh'
+        #    else:
+        #        return 'Rotten'
+
+        #4. Rule: Freshness scoring (Experimental)
+        if(awful_score > 20) #Summary of color is beyond 20, which either means 20% is weird, or the design is wrong.
+            return 'Rotten' #On further thought, let's ignore freshness, since if it seems rotten, it might as well not be fresh.
 
         # 5. RULE: Combined Decay (Rough + Non-circular)
         if contrast > 28.0 and circularity < 0.82:
