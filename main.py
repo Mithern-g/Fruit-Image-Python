@@ -121,7 +121,7 @@ class FeatureExtractor:
         features['yellow_percentage'] = color_data.get('yellow_percentage', 0)
         features['green_percentage'] = color_data.get('green_percentage', 0)
         features['brown_percentage'] = color_data.get('brown_percentage', 0)
-        features['oddity_percentage'] = color_data.get('brown_percentage', 0)
+        features['oddity_percentage'] = color_data.get('oddity_percentage', 0)
         features['decay_percentage'] = color_data.get('decay_percentage', 0)
 
         return features
@@ -141,9 +141,9 @@ class FruitGrader:
         circularity = features.get('circularity', 0)
 
         #Adjust as one desire, this isn't accurate, after all.'
-        brown_weight = 1.2 #Higher due to capability of marking deep red/brown bad situations
-        oddity_weight = 0.2 #Lower due to inaccuracy and weird situations
-        decay_weight = 0.65 #Less due to I am not very confident in this.
+        brown_weight = 1 #Higher due to capability of marking deep red/brown bad situations
+        oddity_weight = 80.0 #Lower due to inaccuracy and weird situations
+        decay_weight = 4.0 #Less due to I am not very confident in this.
 
         # 2. Competitive Scoring
         fresh_score = red + yellow + green
@@ -151,8 +151,8 @@ class FruitGrader:
 
         # 3. RULE: Structural/Texture Failure (Highest Priority)
         # Fixes msg5170347760-69603 (Circ: 0.39) and msg5170347760-71081 (Contrast: 34)
-        if 0 < circularity < 0.60 or contrast > 33.5:
-            return 'Rotten'
+        #if 0 < circularity < 0.60 or contrast > 33.5:
+        #    return 'Rotten'
 
         # 4. RULE: Color Dominance (Freshness Shield)
         # Fixes 6100533069082640056 (Brown: 21.7% but Yellow: 47.5%)
@@ -163,12 +163,12 @@ class FruitGrader:
         #        return 'Rotten'
 
         #4. Rule: Freshness scoring (Experimental)
-        if(awful_score > 20) #Summary of color is beyond 20, which either means 20% is weird, or the design is wrong.
+        if(awful_score > 30): #Summary of color is beyond 20, which either means 20% is weird, or the design is wrong.
             return 'Rotten' #On further thought, let's ignore freshness, since if it seems rotten, it might as well not be fresh.
 
         # 5. RULE: Combined Decay (Rough + Non-circular)
-        if contrast > 28.0 and circularity < 0.82:
-            return 'Rotten'
+        #if contrast > 28.0 and circularity < 0.82:
+        #    return 'Rotten'
 
         return 'Fresh'
     
@@ -245,7 +245,7 @@ def Grade_All_Apples():
             ('Test', test_fresh_dir, fresh_out)
     '''
     # Map the directories to categories
-    folders = [('Test', test_fresh_dir, fresh_out)]
+    folders = [('Fresh', FRESH_APPLE_DIR, fresh_out)]
 
     for category, input_dir, output_dir in folders:
         if not os.path.exists(input_dir):
@@ -294,7 +294,7 @@ def Grade_All_Apples():
         # In your CSV writing section:
         fieldnames = [
             'image', 'actual_category', 'calculated_grade', 
-            'red_percentage', 'yellow_percentage', 'green_percentage', 'brown_percentage',
+            'red_percentage', 'yellow_percentage', 'green_percentage', 'brown_percentage', 'decay_percentage', 'oddity_percentage',
             'circularity', 'glcm_contrast'
         ]
         
