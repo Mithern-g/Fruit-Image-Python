@@ -88,6 +88,9 @@ class ColorSpaceTransformer:
                 'decay_percentage': decay_pct,
                 'oddity_percentage': oddity_pct,
                 'mask': binary_mask,
+                'brown_mask_out':brown_mask,
+                'decay_mask_out':decay_mask,
+                'oddity_mask_out':oddity_mask,
                 'original_bgr': bgr_image
             }
 
@@ -212,7 +215,7 @@ class FruitGradingPipeline:
                 results.append({'fruit_index': idx+1, 'features': features, 'grade': grade})
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(img, grade, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        return results, img
+        return results, img, color_data
 
 # ==================== CORE FUNCTIONS ====================
 def Train_Model():
@@ -235,6 +238,15 @@ def Grade_All_Apples():
     # Define and create output sub-directories
     fresh_out = os.path.join(GRADED_OUTPUT_DIR, "Fresh")
     rotten_out = os.path.join(GRADED_OUTPUT_DIR, "Rotten")
+    standard_out = os.path.join(GRADED_OUTPUT_DIR, "TestOutput") #Added for naming convention.
+
+    #Intermediatary outputs.
+    yolo_out = os.path.join(GRADED_OUTPUT_DIR, "Process Yolo")
+    brown_out = os.path.join(GRADED_OUTPUT_DIR, "Process Brown")
+    oddity_out = os.path.join(GRADED_OUTPUT_DIR, "Process Oddity")
+    decay_out = os.path.join(GRADED_OUTPUT_DIR, "Process Decay")
+    binary_out = os.path.join(GRADED_OUTPUT_DIR, "Binary Mask")
+
     os.makedirs(fresh_out, exist_ok=True)
     os.makedirs(rotten_out, exist_ok=True)
     
@@ -242,10 +254,10 @@ def Grade_All_Apples():
     '''
             (Fresh', FRESH_APPLE_DIR, fresh_out), 
             ('Rotten', ROTTEN_APPLE_DIR, rotten_out),
-            ('Test', test_fresh_dir, fresh_out)
+            ('Test', test_fresh_dir, standard_out)
     '''
     # Map the directories to categories
-    folders = [('Fresh', FRESH_APPLE_DIR, fresh_out)]
+    folders = [('Test', test_fresh_dir, standard_out)]
 
     for category, input_dir, output_dir in folders:
         if not os.path.exists(input_dir):
@@ -262,11 +274,18 @@ def Grade_All_Apples():
             yolo_res = model(img_path, verbose=False)
             
             # 2. Run the Grading Pipeline (Masking -> HSV -> Features -> Grade)
-            grading_res, annotated_img = pipeline.process_detections(img_path, yolo_res)
+            grading_res, annotated_img, color_data = pipeline.process_detections(img_path, yolo_res)
             
             # 3. Save Annotated Image
             if annotated_img is not None:
                 cv2.imwrite(os.path.join(output_dir, filename), annotated_img)
+
+                #Additionally, save intermediate outputs
+                cv2.imwrite(os.path.join(yolo_out, filename), yolo_res[0].plot()) #Remove if this bugs things, generates YOLO Result image
+                cv2.imwrite(os.path.join(brown_out, filename), color_data.get('brown_mask_out', annotated_img)) #Fallback being the supposed output, if it appears then something is wrong.
+                cv2.imwrite(os.path.join(oddity_out, filename), color_data.get('oddity_mask_out', annotated_img))
+                cv2.imwrite(os.path.join(decay_out, filename), color_data.get('decay_mask_out', annonated_img))
+                cv2.imwrite(os.path.join(binary_out, filename), color_data.get('mask', annonated_img)) #This might not work
             
             # 4. Collect Data for CSV
             for res in grading_res:
